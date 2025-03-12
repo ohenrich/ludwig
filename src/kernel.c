@@ -37,7 +37,7 @@ int kernel_launch_param(int iterations, dim3 * nblk, dim3 * ntpb) {
   ntpb->z = 1;
 
   if (ndevice == 0) {
-    nblk->x = 1; /* Default to one block in OpenMP */
+    nblk->x = 1; /* Default to single block in OpenMP */
     nblk->y = 1;
     nblk->z = 1;
   }
