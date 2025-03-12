@@ -7,7 +7,7 @@
  *  Edinburgh Soft Matter and Statistical Physics Group and
  *  Edinburgh Parallel Computing Centre
  *
- *  (c) 2012-2023 The University of Edinburgh
+ *  (c) 2012-2025 The University of Edinburgh
  *
  *  Contributing authors:
  *  Kevin Stratford (kevin@epcc.ed.ac.uk)
@@ -384,7 +384,8 @@ int test_psi_halo_rho(pe_t * pe) {
  *****************************************************************************/
 
 int test_psi_ionic_strength(pe_t * pe) {
-  
+
+  int ifail = 0;
   int nhalo = 1;
   int ntotal[3] = {8, 8, 8};
   psi_options_t opts = psi_options_default(nhalo);
@@ -417,12 +418,13 @@ int test_psi_ionic_strength(pe_t * pe) {
     {
       double value = 0.0;
       psi_ionic_strength(psi, index, &value);
-      assert(fabs(value - strength) < DBL_EPSILON);
+      if (fabs(value - strength) > DBL_EPSILON) ifail = -1;
+      assert(ifail == 0);
     }
   }
   
   psi_free(&psi);
   cs_free(cs);
 
-  return 0;
+  return ifail;
 }
