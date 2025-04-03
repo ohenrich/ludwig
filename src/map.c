@@ -23,6 +23,7 @@
 
 #include "pe.h"
 #include "coords.h"
+#include "kernel.h"
 #include "map.h"
 #include "util.h"
 
@@ -182,6 +183,7 @@ int map_initialise(pe_t * pe, cs_t * cs, const map_options_t * options,
   }
   else {
     char * status = NULL;
+    assert(0); /* Need the cs target pointer */
 
     tdpAssert( tdpMalloc((void **) &map->target, sizeof(map_t)) );
     tdpAssert( tdpMemset(map->target, 0, sizeof(map_t)) );
@@ -994,4 +996,81 @@ int map_halo_impl(cs_t * cs, int nall, int na, void * mbuf,
   free(sendforw);
 
   return 0;
+}
+
+/*****************************************************************************
+ *
+ *  map_data_set_uniform
+ *
+ *  Set data for all locations with a given status, including halo.
+ *  It is the caller's responsibility to ensure data contains
+ *  the relevant map->ndata items.
+ *
+ *  It is imagined this is done only once at initialisation.
+ *
+ *****************************************************************************/
+
+__global__ void map_data_set_uniform_kernel(kernel_3d_t k3d,
+					    map_t * map,
+					    int status,
+					    const double * values) {
+  int kindex = 0;
+
+  for_simt_parallel(kindex, k3d.kiterations, 1) {
+
+    int ic = kernel_3d_ic(&k3d, kindex);
+    int jc = kernel_3d_jc(&k3d, kindex);
+    int kc = kernel_3d_kc(&k3d, kindex);
+
+    int index = cs_index(map->cs, ic, jc, kc);
+
+    if (map->status[index] == status) {
+      map_data_set(map, index, values);
+    }
+  }
+
+  return;
+}
+
+int map_data_set_uniform(map_t * map, int status, const double * data) {
+
+  int ifail = 0;
+
+  assert(map);
+  assert(data);
+
+  if (map->ndata == 0) {
+    ifail = -1;
+  }
+  else {
+
+    double * values = NULL;
+    size_t nbytes   = map->ndata*sizeof(double);
+
+    tdpAssert( tdpMalloc((void **) &values, nbytes) );
+    tdpAssert( tdpMemcpy(values, data, nbytes, tdpMemcpyHostToDevice) );
+
+    /* Run kernel to set the values */
+    {
+      int nhalo = map->cs->param->nhalo;
+      dim3 nblk = {};
+      dim3 ntpb = {};
+      cs_limits_t lim = {1 - nhalo, map->cs->param->nlocal[X] + nhalo,
+                         1 - nhalo, map->cs->param->nlocal[Y] + nhalo,
+                         1 - nhalo, map->cs->param->nlocal[Z] + nhalo};
+
+      kernel_3d_t k3d = kernel_3d(map->cs, lim);
+      kernel_3d_launch_param(k3d.kiterations, &nblk, &ntpb);
+
+      tdpLaunchKernel(map_data_set_uniform_kernel, nblk, ntpb, 0, 0,
+		      k3d, map->target, status, values);
+
+      tdpAssert( tdpPeekAtLastError() );
+      tdpAssert( tdpStreamSynchronize(0) );
+    }
+
+    tdpAssert( tdpFree(values) );
+  }
+
+  return ifail;
 }
