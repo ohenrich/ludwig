@@ -183,7 +183,6 @@ int map_initialise(pe_t * pe, cs_t * cs, const map_options_t * options,
   }
   else {
     char * status = NULL;
-    assert(0); /* Need the cs target pointer */
 
     tdpAssert( tdpMalloc((void **) &map->target, sizeof(map_t)) );
     tdpAssert( tdpMemset(map->target, 0, sizeof(map_t)) );
@@ -198,6 +197,10 @@ int map_initialise(pe_t * pe, cs_t * cs, const map_options_t * options,
     tdpAssert( tdpMemcpy(&map->target->nsite, &map->nsite, sizeof(int),
 			 tdpMemcpyHostToDevice) );
     tdpAssert( tdpMemcpy(&map->target->ndata, &map->ndata, sizeof(int),
+			 tdpMemcpyHostToDevice) );
+
+    /* Copy the cs device pointer */
+    tdpAssert( tdpMemcpy(&map->target->cs, &cs->target, sizeof(cs_t *),
 			 tdpMemcpyHostToDevice) );
 
     /* Data */
@@ -275,8 +278,7 @@ int map_finalise(map_t * map) {
 
 int map_memcpy(map_t * map, tdpMemcpyKind flag) {
 
-  int ndevice;
-  char * tmp;
+  int ndevice = 0;
 
   assert(map);
 
@@ -287,6 +289,8 @@ int map_memcpy(map_t * map, tdpMemcpyKind flag) {
     assert(map->target == map);
   }
   else {
+    char * tmp = NULL;
+
     tdpAssert( tdpMemcpy(&tmp, &map->target->status, sizeof(char *),
 			 tdpMemcpyDeviceToHost) );
 
@@ -1007,6 +1011,10 @@ int map_halo_impl(cs_t * cs, int nall, int na, void * mbuf,
  *  the relevant map->ndata items.
  *
  *  It is imagined this is done only once at initialisation.
+ *
+ *  This clearly leaves host and device in an inconsistent state. The
+ *  data is on the device only. A data copy needs to be added to
+ *  map_memcpy() to get it on the host.
  *
  *****************************************************************************/
 
