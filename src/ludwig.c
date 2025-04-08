@@ -986,7 +986,7 @@ void ludwig_run(const char * inputfile) {
 	stats_velocity_minmax(&statvel, ludwig->hydro, ludwig->map);
       }
 
-      lb_collision_stats_kt(ludwig->lb, ludwig->map);
+      lb_collision_kt_stats(ludwig->lb, ludwig->map);
 
       pe_info(ludwig->pe, "\nCompleted cycle %d\n", step);
     }
